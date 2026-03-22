@@ -10,7 +10,9 @@ export class UIManager {
     clippingAlgorithm: "cohen-sutherland",
     translation: { x: 0, y: 0 },
     rotationDegrees: 0,
-    scale: { x: 1, y: 1 }
+    scale: { x: 1, y: 1 },
+    pixelSize: 1,
+    showGrid: false
   };
 
   private onStateChange: UIStateListener | null = null;
@@ -76,6 +78,13 @@ export class UIManager {
       </section>
 
       <section class="panel">
+        <h2>Display</h2>
+        <label>pixel size: <span id="pixel-size-value">1</span></label>
+        <input id="pixel-size-slider" type="range" min="1" max="14" value="1" />
+        <button id="grid-toggle" class="toggle">Grid: Off</button>
+      </section>
+
+      <section class="panel">
         <button id="clear-btn" class="danger">Clear Matrix</button>
       </section>
     `;
@@ -113,6 +122,17 @@ export class UIManager {
     this.bindRange("sy-slider", "sy-value", (value) => {
       this.state.scale = { ...this.state.scale, y: value / 100 };
     }, (value) => value.toFixed(2));
+    this.bindRange("pixel-size-slider", "pixel-size-value", (value) => {
+      this.state.pixelSize = Math.max(1, Math.floor(value));
+    });
+
+    const gridToggleButton = this.root.querySelector<HTMLButtonElement>("#grid-toggle");
+    gridToggleButton?.addEventListener("click", () => {
+      this.state.showGrid = !this.state.showGrid;
+      this.updateGridButton();
+      this.emitState();
+    });
+    this.updateGridButton();
 
     const clearButton = this.root.querySelector<HTMLButtonElement>("#clear-btn");
     clearButton?.addEventListener("click", () => {
@@ -158,6 +178,16 @@ export class UIManager {
 
   private emitState(): void {
     this.onStateChange?.(this.getState());
+  }
+
+  private updateGridButton(): void {
+    const button = this.root.querySelector<HTMLButtonElement>("#grid-toggle");
+    if (!button) {
+      return;
+    }
+
+    button.textContent = `Grid: ${this.state.showGrid ? "On" : "Off"}`;
+    button.classList.toggle("active", this.state.showGrid);
   }
 }
 

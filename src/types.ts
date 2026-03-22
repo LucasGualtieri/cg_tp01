@@ -28,4 +28,6 @@ export interface UIState {
   translation: Point;
   rotationDegrees: number;
   scale: Point;
+  pixelSize: number;
+  showGrid: boolean;
 }
