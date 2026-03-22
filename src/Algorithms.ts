@@ -9,6 +9,7 @@ const BOTTOM = 4;
 const TOP = 8;
 
 export function drawLineDDA(start: Point, end: Point, setPixel: PixelWriter, color: Color): void {
+	// teste
 }
 
 export function drawLineBresenham(start: Point, end: Point, setPixel: PixelWriter, color: Color): void {
