@@ -1,4 +1,4 @@
-import type { ClippingAlgorithm, LineAlgorithm, Point, Tool, UIState } from "./types";
+import type { ClippingAlgorithm, LineAlgorithm, Tool, UIState } from "./types";
 
 type UIStateListener = (state: UIState) => void;
 type SimpleListener = () => void;
@@ -17,6 +17,8 @@ export class UIManager {
 
   private onStateChange: UIStateListener | null = null;
   private onClearClick: SimpleListener | null = null;
+  /** When true, sx and sy stay equal (uniform scale / zoom). */
+  private scaleLocked = false;
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -63,6 +65,9 @@ export class UIManager {
         <input id="dy-slider" type="range" min="-200" max="200" value="0" />
         <label>angle: <span id="angle-value">0</span></label>
         <input id="angle-slider" type="range" min="-180" max="180" value="0" />
+        <button id="scale-lock-toggle" type="button" class="toggle" title="Mantém sx e sy iguais (zoom uniforme)">
+          Escala uniforme: Desligado
+        </button>
         <label>sx: <span id="sx-value">1.00</span></label>
         <input id="sx-slider" type="range" min="25" max="300" value="100" />
         <label>sy: <span id="sy-value">1.00</span></label>
@@ -116,12 +121,7 @@ export class UIManager {
     this.bindRange("angle-slider", "angle-value", (value) => {
       this.state.rotationDegrees = value;
     });
-    this.bindRange("sx-slider", "sx-value", (value) => {
-      this.state.scale = { ...this.state.scale, x: value / 100 };
-    }, (value) => value.toFixed(2));
-    this.bindRange("sy-slider", "sy-value", (value) => {
-      this.state.scale = { ...this.state.scale, y: value / 100 };
-    }, (value) => value.toFixed(2));
+    this.bindScaleSliders();
     this.bindRange("pixel-size-slider", "pixel-size-value", (value) => {
       this.state.pixelSize = Math.max(1, Math.floor(value));
     });
@@ -138,6 +138,85 @@ export class UIManager {
     clearButton?.addEventListener("click", () => {
       this.onClearClick?.();
     });
+  }
+
+  private bindScaleSliders(): void {
+    const sxSlider = this.root.querySelector<HTMLInputElement>("#sx-slider");
+    const sySlider = this.root.querySelector<HTMLInputElement>("#sy-slider");
+    const sxLabel = this.root.querySelector<HTMLElement>("#sx-value");
+    const syLabel = this.root.querySelector<HTMLElement>("#sy-value");
+    const lockBtn = this.root.querySelector<HTMLButtonElement>("#scale-lock-toggle");
+
+    if (!sxSlider || !sySlider || !sxLabel || !syLabel) {
+      return;
+    }
+
+    const setLabels = (s: number): void => {
+      const t = s.toFixed(2);
+      sxLabel.textContent = t;
+      syLabel.textContent = t;
+    };
+
+    const applyUniformSlider = (sliderValue: number): void => {
+      const v = Math.round(Math.min(300, Math.max(25, sliderValue)));
+      const s = v / 100;
+      sxSlider.value = String(v);
+      sySlider.value = String(v);
+      this.state.scale = { x: s, y: s };
+      setLabels(s);
+      this.emitState();
+    };
+
+    const onSxInput = (): void => {
+      const raw = Number(sxSlider.value);
+      if (this.scaleLocked) {
+        applyUniformSlider(raw);
+        return;
+      }
+      this.state.scale = { ...this.state.scale, x: raw / 100 };
+      sxLabel.textContent = (raw / 100).toFixed(2);
+      this.emitState();
+    };
+
+    const onSyInput = (): void => {
+      const raw = Number(sySlider.value);
+      if (this.scaleLocked) {
+        applyUniformSlider(raw);
+        return;
+      }
+      this.state.scale = { ...this.state.scale, y: raw / 100 };
+      syLabel.textContent = (raw / 100).toFixed(2);
+      this.emitState();
+    };
+
+    sxSlider.addEventListener("input", onSxInput);
+    sySlider.addEventListener("input", onSyInput);
+
+    lockBtn?.addEventListener("click", () => {
+      this.scaleLocked = !this.scaleLocked;
+      if (this.scaleLocked) {
+        const mid = Math.round((Number(sxSlider.value) + Number(sySlider.value)) / 2);
+        applyUniformSlider(mid);
+      }
+      this.updateScaleLockButton();
+    });
+    this.updateScaleLockButton();
+
+    const vx = Number(sxSlider.value);
+    const vy = Number(sySlider.value);
+    this.state.scale = { x: vx / 100, y: vy / 100 };
+    sxLabel.textContent = (vx / 100).toFixed(2);
+    syLabel.textContent = (vy / 100).toFixed(2);
+    this.emitState();
+  }
+
+  private updateScaleLockButton(): void {
+    const lockBtn = this.root.querySelector<HTMLButtonElement>("#scale-lock-toggle");
+    if (!lockBtn) {
+      return;
+    }
+    lockBtn.textContent = this.scaleLocked ? "Escala uniforme: Ligado" : "Escala uniforme: Desligado";
+    lockBtn.classList.toggle("active", this.scaleLocked);
   }
 
   private bindRange(
@@ -199,13 +278,3 @@ export function lineAlgorithmFromTool(tool: Tool): LineAlgorithm {
   return tool === "line-dda" ? "dda" : "bresenham";
 }
 
-export function midpoint(points: Point[]): Point {
-  if (points.length === 0) {
-    return { x: 0, y: 0 };
-  }
-  const total = points.reduce(
-    (acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }),
-    { x: 0, y: 0 }
-  );
-  return { x: total.x / points.length, y: total.y / points.length };
-}

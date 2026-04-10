@@ -1,4 +1,5 @@
-import type { Color } from "./types";
+import { invertAffineMat3, rotationScaleMatFromUIState, transformVectorIJ, type Mat3 } from "./Homogeneous2D";
+import type { Color, UIState } from "./types";
 
 const BYTES_PER_PIXEL = 4;
 
@@ -14,6 +15,15 @@ export class CanvasManager {
 	private pixelSize = 1;
 	private showGrid = false;
 	private dirty = true;
+	/** UI translation (model space) subtracted after inv(R·S) when picking — pairs with p_screen = R·S·(p + t). */
+	private modelTranslationX = 0;
+	private modelTranslationY = 0;
+	/** Inverse of R·S only (screen logical ↔ model + translation). */
+	private viewInverse: Mat3 = [
+		1, 0, 0,
+		0, 1, 0,
+		0, 0, 1
+	];
 
 	constructor(canvas: HTMLCanvasElement) {
 
@@ -43,21 +53,27 @@ export class CanvasManager {
 	}
 
 	canvasPixelToLogical(canvasX: number, canvasY: number): { x: number; y: number } {
-
 		const ps = this.pixelSize;
-		const lx = Math.floor(canvasX / ps);
-		const ly = Math.floor(canvasY / ps);
-		const lw = this.logicalWidth;
-		const lh = this.logicalHeight;
-
+		const sx = Math.floor((canvasX - this.originCanvasX) / ps);
+		const sy = Math.floor((canvasY - this.originCanvasY) / ps);
+		const afterInvRs = transformVectorIJ(this.viewInverse, { i: sx, j: sy });
 		return {
-			x: Math.min(Math.max(0, lx), Math.max(0, lw - 1)),
-			y: Math.min(Math.max(0, ly), Math.max(0, lh - 1))
+			x: afterInvRs.i - this.modelTranslationX,
+			y: afterInvRs.j - this.modelTranslationY
 		};
 	}
 
 	setGridEnabled(enabled: boolean): void {
 		this.showGrid = enabled;
+		this.dirty = true;
+	}
+
+	/** Picking uses inv(R·S) then subtract model translation — same as draw: p_screen = R·S·(p + t). */
+	syncViewFromUIState(ui: UIState): void {
+		const rs = rotationScaleMatFromUIState(ui);
+		this.viewInverse = invertAffineMat3(rs);
+		this.modelTranslationX = ui.translation.x;
+		this.modelTranslationY = ui.translation.y;
 		this.dirty = true;
 	}
 
@@ -72,7 +88,7 @@ export class CanvasManager {
 			this.pixelBuffer[index + 3] = alpha;
 		}
 
-		if (this.showGrid && this.pixelSize > 1) {
+		if (this.showGrid) {
 			this.drawGridOverlay();
 		}
 
@@ -83,14 +99,19 @@ export class CanvasManager {
 
 		const xi = Math.round(x);
 		const yi = Math.round(y);
+		const baseX = this.originCanvasX + xi * this.pixelSize;
+		const baseY = this.originCanvasY + yi * this.pixelSize;
+		const alpha = color.a ?? 255;
 
-		if (xi < 0 || yi < 0 || xi >= this.logicalWidth || yi >= this.logicalHeight) {
+		// Ignore blocks that are fully outside the canvas.
+		if (
+			baseX + this.pixelSize <= 0 ||
+			baseY + this.pixelSize <= 0 ||
+			baseX >= this.width ||
+			baseY >= this.height
+		) {
 			return;
 		}
-
-		const baseX = xi * this.pixelSize;
-		const baseY = yi * this.pixelSize;
-		const alpha = color.a ?? 255;
 
 		for (let oy = 0; oy < this.pixelSize; oy++) {
 			for (let ox = 0; ox < this.pixelSize; ox++) {
@@ -130,25 +151,92 @@ export class CanvasManager {
 	private drawGridOverlay(): void {
 
 		const grid = { r: 45, g: 49, b: 59, a: 255 };
+		const xAxisColor = { r: 90, g: 170, b: 255, a: 255 };
+		const yAxisColor = { r: 255, g: 140, b: 90, a: 255 };
+		const originColor = { r: 255, g: 70, b: 70, a: 255 };
+		const gridLineThickness = Math.max(1, Math.floor(this.pixelSize / 6));
 
-		for (let x = this.pixelSize; x < this.width; x += this.pixelSize) {
+		const writeCanvasPixel = (canvasX: number, canvasY: number, color: Color): void => {
+			if (canvasX < 0 || canvasY < 0 || canvasX >= this.width || canvasY >= this.height) return;
+			const idx = (canvasY * this.width + canvasX) * BYTES_PER_PIXEL;
+			this.pixelBuffer[idx] = color.r;
+			this.pixelBuffer[idx + 1] = color.g;
+			this.pixelBuffer[idx + 2] = color.b;
+			this.pixelBuffer[idx + 3] = color.a ?? 255;
+		};
+
+		const axisCanvasX = this.originCanvasX;
+		const axisCanvasY = this.originCanvasY;
+
+		// Subtle grid between enlarged pixels (avoid "full grid" when pixelSize === 1).
+		if (this.pixelSize > 1) {
+			for (let x = axisCanvasX + this.pixelSize; x < this.width; x += this.pixelSize) {
+				for (let t = 0; t < gridLineThickness; t += 1) {
+					const xx = x + t;
+					for (let y = 0; y < this.height; y++) {
+						writeCanvasPixel(xx, y, grid);
+					}
+				}
+			}
+			for (let x = axisCanvasX - this.pixelSize; x >= 0; x -= this.pixelSize) {
+				for (let t = 0; t < gridLineThickness; t += 1) {
+					const xx = x + t;
+					for (let y = 0; y < this.height; y++) {
+						writeCanvasPixel(xx, y, grid);
+					}
+				}
+			}
+
+			for (let y = axisCanvasY + this.pixelSize; y < this.height; y += this.pixelSize) {
+				for (let t = 0; t < gridLineThickness; t += 1) {
+					const yy = y + t;
+					for (let x = 0; x < this.width; x++) {
+						writeCanvasPixel(x, yy, grid);
+					}
+				}
+			}
+			for (let y = axisCanvasY - this.pixelSize; y >= 0; y -= this.pixelSize) {
+				for (let t = 0; t < gridLineThickness; t += 1) {
+					const yy = y + t;
+					for (let x = 0; x < this.width; x++) {
+						writeCanvasPixel(x, yy, grid);
+					}
+				}
+			}
+		}
+
+		// Strong axes + red dot at the screen origin (logical 0,0 at canvas centre).
+
+		// Y axis (vertical) through transformed origin (same thickness as grid lines).
+		for (let t = 0; t < gridLineThickness; t += 1) {
+			const xx = axisCanvasX + t;
 			for (let y = 0; y < this.height; y++) {
-				const idx = (y * this.width + x) * BYTES_PER_PIXEL;
-				this.pixelBuffer[idx] = grid.r;
-				this.pixelBuffer[idx + 1] = grid.g;
-				this.pixelBuffer[idx + 2] = grid.b;
-				this.pixelBuffer[idx + 3] = grid.a;
+				writeCanvasPixel(xx, y, yAxisColor);
 			}
 		}
 
-		for (let y = this.pixelSize; y < this.height; y += this.pixelSize) {
+		// X axis (horizontal) through transformed origin (same thickness as grid lines).
+		for (let t = 0; t < gridLineThickness; t += 1) {
+			const yy = axisCanvasY + t;
 			for (let x = 0; x < this.width; x++) {
-				const idx = (y * this.width + x) * BYTES_PER_PIXEL;
-				this.pixelBuffer[idx] = grid.r;
-				this.pixelBuffer[idx + 1] = grid.g;
-				this.pixelBuffer[idx + 2] = grid.b;
-				this.pixelBuffer[idx + 3] = grid.a;
+				writeCanvasPixel(x, yy, xAxisColor);
 			}
 		}
+
+		// Origin dot on top of both axes (proportional to grid line thickness).
+		const dotHalf = Math.max(0, Math.floor(gridLineThickness / 2));
+		for (let dotOy = -dotHalf; dotOy <= dotHalf; dotOy += 1) {
+			for (let dotOx = -dotHalf; dotOx <= dotHalf; dotOx += 1) {
+				writeCanvasPixel(axisCanvasX + dotOx, axisCanvasY + dotOy, originColor);
+			}
+		}
+	}
+
+	private get originCanvasX(): number {
+		return Math.floor(this.width / 2);
+	}
+
+	private get originCanvasY(): number {
+		return Math.floor(this.height / 2);
 	}
 }
