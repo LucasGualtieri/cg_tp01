@@ -44,7 +44,7 @@ export class UIManager {
 
   private render(): void {
     this.root.innerHTML = `
-      <h1>CG Boilerplate</h1>
+      <h1>Trabalho prático — Computação Gráfica</h1>
 
       <section class="panel">
         <h2>Tool Selector</h2>

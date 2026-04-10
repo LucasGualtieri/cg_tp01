@@ -1,84 +1,85 @@
-# Computer Graphics Boilerplate (Vite + TypeScript)
+# Trabalho prático — Computação Gráfica (Vite + TypeScript)
 
-This project is a boilerplate for Computer Graphics assignments with a strict pixel-matrix rendering approach.
+Aplicação para o trabalho prático de **Computação Gráfica**, com renderização em **matriz de pixels** (sem uso de primitivas de alto nível do canvas para os algoritmos de desenho).
 
-It uses:
-- `Uint8ClampedArray` as the pixel buffer
-- `ImageData` + `putImageData` to present pixels on canvas
-- click/touch-first interaction for drawing and selection
+O projeto utiliza:
 
-No high-level canvas primitives are used for the drawing algorithms.
+- `Uint8ClampedArray` como buffer de pixels
+- `ImageData` + `putImageData` para exibir os pixels no canvas
+- Interação principalmente por clique/toque para desenho e seleção
 
-## Requirements
+Os algoritmos de rasterização e recorte **não** usam funções como `lineTo()` ou `arc()` do canvas.
 
-- Node.js 18+ (recommended)
+## Requisitos
+
+- Node.js 18+ (recomendado)
 - npm
 
-## Getting Started
+## Como executar
 
-Install dependencies:
+Instale as dependências:
 
 ```bash
 npm install
 ```
 
-Run in development mode (Vite + HMR):
+Modo desenvolvimento (Vite + HMR):
 
 ```bash
 npm run dev
 ```
 
-Build for production:
+Build de produção:
 
 ```bash
 npm run build
 ```
 
-Preview production build:
+Pré-visualizar o build de produção:
 
 ```bash
 npm run preview
 ```
 
-## Deploying to GitHub Pages
+## Publicação no GitHub Pages
 
-Vite needs a correct [**`base`**](https://vitejs.dev/config/shared-options.html#base) when the app is not at the domain root. GitHub **project** pages use `https://<user>.github.io/<repo>/`, so assets must load from `/<repo>/`.
+O Vite precisa de um [**`base`**](https://vitejs.dev/config/shared-options.html#base) correto quando o site não fica na raiz do domínio. Páginas de **projeto** no GitHub usam `https://<usuário>.github.io/<repositório>/`, então os assets devem ser carregados a partir de `/<repositório>/`.
 
-### Option A — GitHub Actions (recommended)
+### Opção A — GitHub Actions (recomendado)
 
-1. Push this repo to GitHub (branch `main` or `master`; the workflow listens to both).
-2. **Settings → Pages → Build and deployment → Source:** choose **GitHub Actions**.
-3. Push a commit (or run the workflow manually). The site will be at  
-   `https://<username>.github.io/<repository>/`.
+1. Envie o repositório para o GitHub (branch `main` ou `master`; o workflow aceita os dois).
+2. **Settings → Pages → Build and deployment → Source:** escolha **GitHub Actions**.
+3. Faça um push (ou dispare o workflow manualmente). O site ficará em  
+   `https://<usuário>.github.io/<repositório>/`.
 
-The workflow sets `GITHUB_PAGES_BASE=/<repo>/` at build time. A `public/.nojekyll` file is included so GitHub Pages does not run Jekyll on the output.
+O workflow define `GITHUB_PAGES_BASE=/<repositório>/` no build. O arquivo `public/.nojekyll` evita que o GitHub Pages rode Jekyll em cima do `dist`.
 
-**If your repo is `<username>.github.io`** (user/org site at `https://<username>.github.io/` with no subpath), edit `.github/workflows/deploy-pages.yml` and set:
+**Se o repositório for `<usuário>.github.io`** (site na raiz, sem subcaminho), edite `.github/workflows/deploy-pages.yml` e defina:
 
 ```yaml
 env:
   GITHUB_PAGES_BASE: /
 ```
 
-**Test a production build locally** with the same base as GitHub:
+**Teste local** com o mesmo `base` do GitHub:
 
 ```bash
-GITHUB_PAGES_BASE=/your-repo-name/ npm run build
+GITHUB_PAGES_BASE=/nome-do-seu-repo/ npm run build
 npx vite preview
 ```
 
-Open the URL Vite prints; paths should load under `/your-repo-name/`.
+Abra a URL que o Vite mostrar; os caminhos devem funcionar sob `/nome-do-seu-repo/`.
 
-### Option B — Manual `gh-pages` branch
+### Opção B — Branch `gh-pages` manual
 
 ```bash
-GITHUB_PAGES_BASE=/your-repo-name/ npm run build
+GITHUB_PAGES_BASE=/nome-do-seu-repo/ npm run build
 npx gh-pages -d dist
 ```
 
-(Install `gh-pages` globally or use `npx gh-pages`.) Point Pages at the `gh-pages` branch in repo settings.
+(Instale `gh-pages` globalmente ou use `npx gh-pages`.) Nas configurações do Pages, aponte para a branch `gh-pages`.
 
-## Project Structure
+## Estrutura do projeto
 
 ```text
 .
@@ -95,80 +96,66 @@ npx gh-pages -d dist
 └── vite.config.ts
 ```
 
-### Module Responsibilities
+### Responsabilidades dos módulos
 
-- `CanvasManager.ts`
-  - Owns the canvas context and pixel buffer.
-  - Exposes `setPixel(x, y, color)` for direct pixel writes.
-  - Exposes `clear()` and `present()` (`putImageData`) for frame updates.
+- **`CanvasManager.ts`**  
+  Gerencia o contexto do canvas e o buffer de pixels. Expõe `setPixel(x, y, color)`, `clear()` e `present()` (`putImageData`) para atualizar o quadro.
 
-- `Algorithms.ts`
-  - Exports rasterization, clipping, and transformation functions used by the app.
-  - Receives a pixel-writer callback to draw into `CanvasManager`.
+- **`Algorithms.ts`**  
+  Funções de rasterização, recorte e transformações usadas pela aplicação. Recebe um callback de escrita de pixel ligado ao `CanvasManager`.
 
-- `InputHandler.ts`
-  - Captures mouse and touch input on the canvas.
-  - Converts browser coordinates to canvas pixel coordinates.
+- **`InputHandler.ts`**  
+  Captura mouse e toque no canvas e converte coordenadas do navegador para pixels do canvas.
 
-- `UIManager.ts`
-  - Builds and manages sidebar controls.
-  - Emits UI state updates (tool selection, clipping mode, transforms).
-  - Emits clear action events.
+- **`UIManager.ts`**  
+  Monta e controla a barra lateral; emite mudanças de estado (ferramenta, recorte, transformações) e o evento de limpar.
 
-- `main.ts`
-  - Connects all modules.
-  - Stores scene primitives (points, lines, circles).
-  - Applies transforms/clipping according to UI state.
-  - Runs the render loop and presents pixels when needed.
+- **`main.ts`**  
+  Integra os módulos, guarda primitivas da cena (pontos, retas, círculos), aplica transformações e recorte conforme o estado da UI e executa o laço de renderização.
 
-## Using the Application
+## Uso da aplicação
 
-## 1) Tool Selector
+### 1) Ferramentas
 
-Choose one drawing mode in the sidebar:
+Escolha um modo na barra lateral:
 
-- **Point**: each click/touch adds one point.
-- **Line DDA**: click start point, then end point.
-- **Line Bresenham**: click start point, then end point.
-- **Circle**: click center, then click a point on the radius.
-- **Selection**: click two corners to define a clipping rectangle.
+- **Point**: cada clique/toque adiciona um ponto.
+- **Line DDA**: primeiro clique no início da reta, segundo no fim.
+- **Line Bresenham**: mesmo esquema (dois cliques).
+- **Circle**: centro e depois um ponto que define o raio.
+- **Selection**: dois cliques nos cantos opostos do retângulo de recorte.
 
-## 2) Transformation Controls
+### 2) Transformações
 
-Use sliders to control scene transformations:
+Sliders para transformar a cena na renderização:
 
-- `dx`, `dy`: translation
-- `angle`: rotation (degrees)
-- `sx`, `sy`: scale factors
+- `dx`, `dy`: translação
+- `angle`: rotação (graus)
+- `sx`, `sy`: fatores de escala (há opção de escala uniforme na interface)
 
-These values are applied during rendering and update the scene visually.
+### 3) Recorte
 
-## 3) Clipping Toggle
+Escolha o algoritmo:
 
-Choose clipping strategy:
+- Cohen–Sutherland
+- Liang–Barsky
 
-- `Cohen-Sutherland`
-- `Liang-Barsky`
+Com um retângulo de recorte definido (ferramenta Selection), as retas são recortadas pelo método ativo.
 
-When a clipping rectangle exists (Selection tool), line primitives are clipped by the active method.
+### 4) Limpar
 
-## 4) Clear Matrix
+**Clear Matrix** remove todas as primitivas e o retângulo de recorte, limpando o conteúdo desenhado.
 
-`Clear Matrix` removes all primitives and selection state, resetting the canvas content.
+## Fluxo de renderização (resumo)
 
-## Render Pipeline Overview
+1. Entrada/UI alteram o estado e marcam a necessidade de redesenhar.
+2. O `renderLoop` verifica se há redesenho.
+3. Ao redesenhar: limpa o buffer, redesenha as primitivas com os algoritmos exportados e envia o quadro com `putImageData`.
 
-1. Input/UI changes set the scene state and mark redraw as needed.
-2. `renderLoop` checks whether redraw is required.
-3. On redraw:
-   - pixel buffer is cleared
-   - primitives are re-rendered through exported algorithm functions
-   - updated frame is pushed with `putImageData`
+Assim a cena permanece determinística e baseada só na matriz de pixels.
 
-This keeps rendering deterministic and fully pixel-buffer driven.
+## Observações
 
-## Notes
-
-- Canvas uses `image-rendering: pixelated` for crisp visual output.
-- Touch input is enabled for click-heavy assignment interaction on touch devices.
-- TypeScript strict mode is enabled for safer development.
+- O canvas usa `image-rendering: pixelated` para visualização nítida em “pixels” ampliados.
+- Há suporte a toque para uso em dispositivos móveis.
+- TypeScript em modo strict para maior segurança de tipos.
