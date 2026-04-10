@@ -1,6 +1,5 @@
 # Build Vite output to dist/ and deploy to GitHub Pages.
-# After merging: Settings → Pages → Build and deployment → Source: GitHub Actions
-# (not "Deploy from a branch" at repo root — that serves unbuilt .ts and shows a blank page.)
+# Settings → Pages → Source: GitHub Actions (not "Deploy from branch" at repo root).
 
 name: Deploy to GitHub Pages
 
@@ -34,20 +33,25 @@ jobs:
 
       - name: Build
         env:
-          # Project Pages URL: https://<user>.github.io/<repo>/
           GITHUB_PAGES_BASE: /${{ github.event.repository.name }}/
         run: npm run build
 
+      # include-hidden-files: v4+ excludes dotfiles by default; we need dist/.nojekyll for Pages
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+          name: github-pages
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - id: deployment
+      - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
